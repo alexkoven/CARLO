@@ -5,7 +5,11 @@ from geometry import Point
 import time
 from tkinter import *
 
-human_controller = True
+# Choose your control mode:
+# 'keyboard' - use arrow keys to control the car
+# 'openloop' - use a programmed speed and steering function
+# 'auto' - use the built-in automatic controller
+control_mode = 'openloop'  # Options: 'keyboard', 'openloop', 'auto'
 
 dt = 0.1 # time steps in terms of seconds. In other words, 1/dt is the FPS.
 world_width = 120 # in meters
@@ -43,15 +47,73 @@ for lane_no in range(num_lanes - 1):
 # A Car object is a dynamic object -- it can move. We construct it using its center location and heading angle.
 c1 = Car(Point(91.75,60), np.pi/2)
 c1.max_speed = 30.0 # let's say the maximum is 30 m/s (108 km/h)
-c1.velocity = Point(0, 3.0)
+c1.velocity = Point(0, 0)  # Start stationary
 w.add(c1)
 
 w.render() # This visualizes the world we just constructed.
 
 
 
-if not human_controller:
-    # Let's implement some simple policy for the car c1
+if control_mode == 'openloop':
+    # OPEN-LOOP CONTROL: Modify the my_controller function below!
+    from interactive_controllers import OpenLoopController
+    
+    def my_controller(t):
+        """
+        This function is called at every simulation step.
+        
+        Args:
+            t: Current simulation time in seconds
+            
+        Returns:
+            speed: Throttle value (-1.5 to +1.5)
+                   Positive = accelerate, Negative = brake/reverse
+            steering: Steering angle (-0.5 to +0.5)
+                      Positive = left, Negative = right
+        """
+        # Example 1: Constant speed and turn (for circular track)
+        # Note: Negative steering = right turn, needed for counterclockwise circle
+        speed = 0.6
+        steering = 0.1  # constant right turn
+        
+        # Example 2: Accelerate while turning
+        # speed = min(0.05 * t, 0.5)  # accelerate gradually up to 0.5
+        # steering = -0.15
+        
+        # Example 3: Change speed on different parts of track
+        # # Use modulo to repeat pattern every ~40 seconds (one lap)
+        # lap_time = t % 40
+        # if lap_time < 10:
+        #     speed = 0.5      # fast on first quarter
+        #     steering = -0.15
+        # elif lap_time < 20:
+        #     speed = 0.3      # slow on second quarter
+        #     steering = -0.15
+        # elif lap_time < 30:
+        #     speed = 0.5      # fast on third quarter
+        #     steering = -0.15
+        # else:
+        #     speed = 0.3      # slow on fourth quarter
+        #     steering = -0.15
+        
+        return speed, steering
+    
+    controller = OpenLoopController(my_controller, world=w)
+    
+    for k in range(3600):
+        c1.set_control(controller.steering, controller.throttle)
+        w.tick()
+        w.render()
+        time.sleep(dt/4)
+        
+        if w.collision_exists():
+            print(f'Collision at time t={w.t:.2f}s!')
+            import sys
+            sys.exit(0)
+    w.close()
+
+elif control_mode == 'auto':
+    # AUTOMATIC CONTROL: Lane-keeping policy for circular road
     desired_lane = 1
     for k in range(600):
         lp = 0.
@@ -70,24 +132,28 @@ if not human_controller:
         if np.random.rand() < lp: c1.set_control(0.2, 0.1)
         else: c1.set_control(-0.1, 0.1)
         
-        w.tick() # This ticks the world for one time step (dt second)
+        w.tick()
         w.render()
-        time.sleep(dt/4) # Let's watch it 4x
+        time.sleep(dt/4)
 
-        if w.collision_exists(): # We can check if there is any collision at all.
+        if w.collision_exists():
             print('Collision exists somewhere...')
     w.close()
 
-else: # Let's use the keyboard input for human control
+else:  # control_mode == 'keyboard'
+    # KEYBOARD CONTROL: Use arrow keys
     from interactive_controllers import KeyboardController
-    c1.set_control(0., 0.) # Initially, the car will have 0 steering and 0 throttle.
+    c1.set_control(0., 0.)
     controller = KeyboardController(w)
-    for k in range(600):
+    
+    for k in range(3600):
         c1.set_control(controller.steering, controller.throttle)
-        w.tick() # This ticks the world for one time step (dt second)
+        w.tick()
         w.render()
-        time.sleep(dt/4) # Let's watch it 4x
+        time.sleep(dt/4)
+        
         if w.collision_exists():
+            print(f'Collision at time t={w.t:.2f}s!')
             import sys
             sys.exit(0)
     w.close()

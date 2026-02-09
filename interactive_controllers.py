@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Union, Callable
 try:
     import pygame # necessary only for the SteeringWheelController
 except ImportError:
@@ -75,3 +76,54 @@ class SteeringWheelController: # For Logitech G29 Steering Wheel
     def throttle(self):
         events = pygame.event.get() # This is necessary
         return -self.joystick.get_axis(1)
+
+
+class OpenLoopController:
+    """
+    A simple open-loop controller for programming car behavior.
+    
+    Kids define a function that returns (speed, steering) values.
+    The function is called every tick with the current simulation time.
+    
+    Example:
+        def my_control_function(t):
+            # t is the current simulation time in seconds
+            speed = 0.5      # throttle: -1.5 to +1.5
+            steering = 0.0   # steering: -0.5 (right) to +0.5 (left)
+            return speed, steering
+        
+        controller = OpenLoopController(my_control_function, world=w)
+    
+    Args:
+        control_function: A function that takes time (t) and returns (speed, steering) tuple
+        world: The World object (used to get current simulation time)
+    """
+    def __init__(self, 
+                 control_function: Callable[[float], tuple] = None,
+                 world = None):
+        if control_function is None:
+            # Default: stationary car
+            control_function = lambda t: (0.0, 0.0)
+        
+        self._control_function = control_function
+        self._world = world
+        
+        # Limits for safety
+        self.min_steering = -0.5
+        self.max_steering = +0.5
+        self.min_throttle = -1.5
+        self.max_throttle = +1.5
+    
+    @property
+    def steering(self) -> float:
+        """Returns the current steering angle."""
+        t = self._world.t if self._world is not None else 0.0
+        speed, steering = self._control_function(t)
+        return np.clip(steering, self.min_steering, self.max_steering)
+    
+    @property
+    def throttle(self) -> float:
+        """Returns the current throttle (speed control)."""
+        t = self._world.t if self._world is not None else 0.0
+        speed, steering = self._control_function(t)
+        return np.clip(speed, self.min_throttle, self.max_throttle)
